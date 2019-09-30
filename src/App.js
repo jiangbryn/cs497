@@ -1,33 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import 'rbx/index.css';
 import { Button, Container, Title } from 'rbx';
 
-//data
-const schedule = {
-  "title": "CS Courses for 2018-2019",
-  "courses": [
-    {
-      "id": "F101",
-      "title": "Computer Science: Concepts, Philosophy, and Connections",
-      "meets": "MWF 11:00-11:50"
-    },
-    {
-      "id": "F110",
-      "title": "Intro Programming for non-majors",
-      "meets": "MWF 10:00-10:50"
-    },
-    {
-      "id": "F111",
-      "title": "Fundamentals of Computer Programming I",
-      "meets": "MWF 13:00-13:50"
-    },
-    {
-      "id": "F211",
-      "title": "Fundamentals of Computer Programming II",
-      "meets": "TuTh 12:30-13:50"
-    }
-  ]
-};
 
 const terms = { F: 'Fall', W: 'Winter', S: 'Spring'};
 
@@ -43,7 +17,7 @@ const getCourseNumber = course => (
 
 //User's Components
 function Banner(props) {
-	return <Title>{ props.title }</Title>;
+	return <Title>{ props.title || '[loading...]'}</Title>;
 }
 
 function Course(props) {
@@ -80,11 +54,25 @@ const CourseList = ({ courses }) => (
 */
 
 //App
-const App = () =>  (
-	<Container>
-		<Banner title={ schedule.title} />
-    	<CourseList courses={ schedule.courses} />
-    </Container>
-);
+const App = () =>  {
+	const url = 'https://courses.cs.northwestern.edu/394/data/cs-courses.php';	
+	const [schedule, setSchedule] = useState({ title: '', courses: [] });
+	useEffect(() => {
+		const fetchSchedule = async () => {
+			const response = await fetch(url);
+			if(!response.ok) throw response;
+			const json = await response.json();
+			setSchedule(json);
+		}
+		fetchSchedule();
+	},[])
+	
+	return (
+		<Container>
+			<Banner title={ schedule.title} />
+	    	<CourseList courses={ schedule.courses} />
+	    </Container>
+	);
+};
 
 export default App;
