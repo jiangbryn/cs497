@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import 'rbx/index.css';
-import { Button, Container, Title } from 'rbx';
+import { Button, Container, Message, Title } from 'rbx';
 
 import firebase from 'firebase/app';
 import 'firebase/database';
+
+import 'firebase/auth';
+import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth';
 
 //database
 const firebaseConfig = {
@@ -19,15 +22,24 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database().ref();
 
-
+//UI
+const uiConfig = {
+  signInFlow: 'popup',
+  signInOptions: [
+    firebase.auth.GoogleAuthProvider.PROVIDER_ID
+  ],
+  callbacks: {
+    signInSuccessWithAuthResult: () => false
+  }
+};
 
 const terms = { F: 'Fall', W: 'Winter', S: 'Spring'};
 
-// a conflict must involve overlapping days and times
 const days = ['M', 'Tu', 'W', 'Th', 'F'];
 
 const meetsPat = /^ *((?:M|Tu|W|Th|F)+) +(\d\d?):(\d\d) *[ -] *(\d\d?):(\d\d) *$/;
 
+//JS Function
 const daysOverlap = (days1, days2) => ( 
   days.some(day => days1.includes(day) && days2.includes(day))
 );
@@ -50,7 +62,6 @@ const hasConflict = (course, selected) => (
   selected.some(selection => courseConflict(course, selection))
 );
 
-//JS Function
 const getCourseTerm = course => (
 	terms[course.id.charAt(0)]
 );
@@ -66,6 +77,10 @@ const useSelection = () => {
   };
   return [ selected, toggle ];
 };
+
+const buttonColor = selected => (
+  selected ? 'success' : null
+);
 
 const moveCourse = course => {
   const meets = prompt('Enter new meeting data, in this format:', course.meets);
@@ -90,10 +105,42 @@ const addScheduleTimes = schedule => ({
   courses: Object.values(schedule.courses).map(addCourseTimes)
 });
 
-//User's Components
-const Banner = ({ title }) => {
-	return <Title>{ title || '[loading...]'}</Title>;
+const timeParts = meets => {
+  const [match, days, hh1, mm1, hh2, mm2] = meetsPat.exec(meets) || [];
+  return !match ? {} : {
+    days,
+    hours: {
+      start: hh1 * 60 + mm1 * 1,
+      end: hh2 * 60 + mm2 * 1
+    }
+  };
 };
+
+//User's Components
+const Welcome = ({ user }) => (
+  <Message color="info">
+    <Message.Header>
+      Welcome, {user.displayName}
+      <Button primary onClick={() => firebase.auth().signOut()}>
+        Log out
+      </Button>
+    </Message.Header>
+  </Message>
+);
+
+const SignIn = () => (
+  <StyledFirebaseAuth
+    uiConfig={uiConfig}
+    firebaseAuth={firebase.auth()}
+  />
+);
+
+const Banner = ({ user, title }) => (
+  <React.Fragment>
+    { user ? <Welcome user={ user } /> : <SignIn /> }
+    <Title>{ title || '[loading...]' }</Title>
+  </React.Fragment>
+);
 
 const Course = ({ course, state }) => (
 <Button color={ buttonColor(state.selected.includes(course)) }
@@ -103,10 +150,6 @@ const Course = ({ course, state }) => (
     >
     { getCourseTerm(course) } CS { getCourseNumber(course) }: { course.title }
   </Button>
-);
-
-const buttonColor = selected => (
-  selected ? 'success' : null
 );
 
 const TermSelector = ({ state }) => (
@@ -141,34 +184,28 @@ const CourseList = ({ courses }) => {
   );
 };
 
-const timeParts = meets => {
-  const [match, days, hh1, mm1, hh2, mm2] = meetsPat.exec(meets) || [];
-  return !match ? {} : {
-    days,
-    hours: {
-      start: hh1 * 60 + mm1 * 1,
-      end: hh2 * 60 + mm2 * 1
-    }
-  };
-};
-
 
 //App
 const App = () => {
   const [schedule, setSchedule] = useState({ title: '', courses: [] });
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     const handleData = snap => {
       if (snap.val()) setSchedule(addScheduleTimes(snap.val()));
-    }
+    };
     db.on('value', handleData, error => alert(error));
     return () => { db.off('value', handleData); };
   }, []);
 
-  return (
+  useEffect(() => {
+    firebase.auth().onAuthStateChanged(setUser);
+  }, []);
+
+return (
     <Container>
-      <Banner title={ schedule.title } />
-      <CourseList courses={ schedule.courses } />
+      <Banner title={ schedule.title } user={ user } />
+      <CourseList courses={ schedule.courses } user={ user } />
     </Container>
   );
 };
